@@ -1,0 +1,472 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Prisma Schema — ResumeAI Pro
+//
+// DATABASE SWITCHING: Change `provider` and `url` in the datasource block.
+// Prisma abstracts all SQL differences. Current: Supabase (PostgreSQL).
+// Future options: "mysql" (PlanetScale), "sqlite" (local dev), "sqlserver".
+// The `directUrl` bypasses connection poolers for migrations.
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = "postgresql://postgres.bqpwoloaaeekofygipjn:58941589jadih@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres"
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum SubscriptionTier {
+  FREE
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+  INCOMPLETE
+}
+
+enum BillingInterval {
+  MONTHLY
+  YEARLY
+}
+
+enum ResumeSection {
+  SUMMARY
+  EXPERIENCE
+  EDUCATION
+  SKILLS
+  PROJECTS
+  CERTIFICATIONS
+  AWARDS
+  LANGUAGES
+  VOLUNTEER
+  PUBLICATIONS
+}
+
+enum AiOperation {
+  ENHANCE
+  JOB_ALIGN
+  PROBABILITY_SCORE
+  LINKEDIN_EVAL
+  CONTACT_FIND
+  MESSAGE_GENERATE
+  COVER_LETTER
+}
+
+enum ApplicationStatus {
+  SAVED
+  APPLIED
+  SCREENING
+  INTERVIEW
+  OFFER
+  REJECTED
+  WITHDRAWN
+}
+
+enum JobSource {
+  LINKEDIN
+  MANUAL
+  INDEED
+  GLASSDOOR
+  OTHER
+}
+
+enum MessageStatus {
+  DRAFT
+  QUEUED
+  SENT
+  RESPONDED
+  IGNORED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AUTH (NextAuth v5 + Prisma Adapter)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CORE USER
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Auth relations
+  accounts Account[]
+  sessions Session[]
+
+  // Business relations
+  subscription   Subscription?
+  resumes        Resume[]
+  jobSearches    JobSearch[]
+  jobApplications JobApplication[]
+  aiUsageLogs    AiUsageLog[]
+  contacts       Contact[]
+  messages       OutreachMessage[]
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SUBSCRIPTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String             @unique
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  stripePriceId        String?
+  tier                 SubscriptionTier   @default(FREE)
+  status               SubscriptionStatus @default(TRIALING)
+  billingInterval      BillingInterval?
+  trialEndsAt          DateTime?
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
+  @@map("subscriptions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RESUMES
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Resume {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String   @default("Untitled Resume")
+  templateId  String   @default("modern")
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Structured sections stored as JSON for schema flexibility
+  personalInfo Json @default("{}")
+  summary      String?
+  skills       Json @default("[]")   // Skill[]
+  languages    Json @default("[]")   // Language[]
+  certifications Json @default("[]") // Certification[]
+  awards       Json @default("[]")   // Award[]
+  customSections Json @default("[]") // CustomSection[]
+
+  // ATS metadata
+  atsScore     Int?
+  lastAtsCheck DateTime?
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  experiences WorkExperience[]
+  educations  Education[]
+  projects    Project[]
+  versions    ResumeVersion[]
+  applications JobApplication[]
+
+  @@index([userId])
+  @@map("resumes")
+}
+
+model WorkExperience {
+  id           String   @id @default(cuid())
+  resumeId     String
+  company      String
+  title        String
+  location     String?
+  startDate    String
+  endDate      String?
+  current      Boolean  @default(false)
+  bullets      Json     @default("[]") // string[]
+  order        Int      @default(0)
+  relevanceScore Int?   // set by job-align AI
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  resume Resume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+
+  @@index([resumeId])
+  @@map("work_experiences")
+}
+
+model Education {
+  id           String   @id @default(cuid())
+  resumeId     String
+  institution  String
+  degree       String
+  field        String?
+  startDate    String
+  endDate      String?
+  current      Boolean  @default(false)
+  gpa          String?
+  honors       String?
+  activities   String?
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  resume Resume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+
+  @@index([resumeId])
+  @@map("educations")
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  resumeId    String
+  name        String
+  description String?
+  bullets     Json     @default("[]") // string[]
+  url         String?
+  repoUrl     String?
+  techStack   Json     @default("[]") // string[]
+  startDate   String?
+  endDate     String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  resume Resume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+
+  @@index([resumeId])
+  @@map("projects")
+}
+
+// Point-in-time snapshot for version history
+model ResumeVersion {
+  id        String   @id @default(cuid())
+  resumeId  String
+  version   Int
+  label     String?  // e.g. "Before job align", "v3 — Google apply"
+  snapshot  Json     // Full resume JSON
+  createdAt DateTime @default(now())
+
+  resume Resume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+
+  @@index([resumeId])
+  @@map("resume_versions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI USAGE TRACKING (cost control + tier enforcement)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AiUsageLog {
+  id            String      @id @default(cuid())
+  userId        String
+  operation     AiOperation
+  model         String      // e.g. "gpt-4o-mini", "claude-haiku-3", "claude-3-5-sonnet"
+  promptTokens  Int         @default(0)
+  outputTokens  Int         @default(0)
+  costUsd       Float       @default(0)
+  durationMs    Int         @default(0)
+  success       Boolean     @default(true)
+  errorMessage  String?
+  metadata      Json?       // resumeId, jobId, etc.
+  createdAt     DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, operation])
+  @@map("ai_usage_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// JOB SEARCH & APPLICATIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model JobSearch {
+  id              String   @id @default(cuid())
+  userId          String
+  name            String   @default("My Job Search")
+  keywords        String[]
+  locations       String[]
+  remoteOnly      Boolean  @default(false)
+  matchThreshold  Int      @default(70) // 50 | 70 | 100
+  companySizes    String[]
+  salaryMin       Int?
+  salaryMax       Int?
+  isActive        Boolean  @default(true)
+  lastFetchedAt   DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs LinkedInJob[]
+
+  @@index([userId])
+  @@map("job_searches")
+}
+
+model LinkedInJob {
+  id              String    @id @default(cuid())
+  jobSearchId     String
+  linkedinId      String?   @unique
+  title           String
+  company         String
+  location        String?
+  remote          Boolean   @default(false)
+  description     String
+  requirements    Json      @default("[]")
+  url             String
+  source          JobSource @default(LINKEDIN)
+  postedAt        DateTime?
+  applicantsCount Int?
+  easyApply       Boolean   @default(false)
+
+  // AI evaluation results
+  matchPercentage   Int?
+  recommendation    String?  // "strong" | "moderate" | "weak" | "reject"
+  matchAnalysis     Json?    // Full Prompt 4 output
+  evaluated         Boolean  @default(false)
+  evaluatedAt       DateTime?
+
+  createdAt DateTime @default(now())
+
+  jobSearch    JobSearch       @relation(fields: [jobSearchId], references: [id], onDelete: Cascade)
+  applications JobApplication[]
+
+  @@index([jobSearchId])
+  @@map("linkedin_jobs")
+}
+
+model JobApplication {
+  id           String            @id @default(cuid())
+  userId       String
+  resumeId     String
+  jobId        String?
+  company      String
+  title        String
+  jobUrl       String?
+  status       ApplicationStatus @default(SAVED)
+  appliedAt    DateTime?
+  notes        String?
+
+  // AI-generated materials
+  alignedResume     Json?    // Prompt 2 output
+  alignmentScore    Int?
+  probabilityScore  Int?     // Prompt 3 output
+  coverLetter       String?
+  talkingPoints     Json?
+
+  // Auto-apply state (Enterprise)
+  autoApplyStarted  Boolean  @default(false)
+  autoApplyComplete Boolean  @default(false)
+  requiresUserConfirm Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resume Resume       @relation(fields: [resumeId], references: [id])
+  job    LinkedInJob? @relation(fields: [jobId], references: [id])
+
+  @@index([userId])
+  @@index([resumeId])
+  @@map("job_applications")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTACTS & OUTREACH (Enterprise)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Contact {
+  id               String  @id @default(cuid())
+  userId           String
+  name             String?
+  likelyTitle      String
+  company          String
+  linkedinUrl      String?
+  linkedinSearchStrategy String?
+  department       String?
+  priority         Int     @default(1)
+  rationale        String?
+  mutualConnections Json   @default("[]")
+  createdAt        DateTime @default(now())
+
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages OutreachMessage[]
+
+  @@index([userId])
+  @@map("contacts")
+}
+
+model OutreachMessage {
+  id            String        @id @default(cuid())
+  userId        String
+  contactId     String?
+  version       String        // "warm_intro" | "direct_value"
+  subjectLine   String?
+  body          String
+  status        MessageStatus @default(DRAFT)
+  scheduledAt   DateTime?
+  sentAt        DateTime?
+  responseAt    DateTime?
+  followUpDay   Int?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contact Contact? @relation(fields: [contactId], references: [id])
+
+  @@index([userId])
+  @@map("outreach_messages")
+}
