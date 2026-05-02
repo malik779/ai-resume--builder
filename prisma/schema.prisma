@@ -13,7 +13,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = "postgresql://postgres.bqpwoloaaeekofygipjn:58941589jadih@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres"
+  url      = env("DATABASE_URL")
 }
 // ─────────────────────────────────────────────────────────────────────────────
 // ENUMS
