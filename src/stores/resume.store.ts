@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
-import type { Resume, WorkExperience, Education, Project, Skill } from "@/types/resume";
+import type { Resume, WorkExperience, Education, Project, Skill, Language, Certification } from "@/types/resume";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Resume editor store — owns all mutable resume state during an edit session.
@@ -12,9 +12,11 @@ interface ResumeState {
   isDirty: boolean;
   isSaving: boolean;
   activeSection: string | null;
+  sectionOrder: string[];
 
   // Actions
   setResume: (resume: Resume) => void;
+  setSectionOrder: (order: string[]) => void;
   updatePersonalInfo: (data: Partial<Resume["personalInfo"]>) => void;
   updateSummary: (summary: string) => void;
   addExperience: (exp: WorkExperience) => void;
@@ -28,6 +30,8 @@ interface ResumeState {
   updateProject: (id: string, data: Partial<Project>) => void;
   removeProject: (id: string) => void;
   setSkills: (skills: Skill[]) => void;
+  setLanguages: (languages: Language[]) => void;
+  setCertifications: (certifications: Certification[]) => void;
   setTemplate: (templateId: string) => void;
   setActiveSection: (section: string | null) => void;
   setSaving: (saving: boolean) => void;
@@ -41,8 +45,10 @@ export const useResumeStore = create<ResumeState>()(
       isDirty: false,
       isSaving: false,
       activeSection: null,
+      sectionOrder: ["summary", "experience", "education", "skills"],
 
       setResume: (resume) => set({ resume, isDirty: false }),
+      setSectionOrder: (sectionOrder) => set({ sectionOrder }),
 
       updatePersonalInfo: (data) =>
         set((s) => ({
@@ -122,6 +128,12 @@ export const useResumeStore = create<ResumeState>()(
 
       setSkills: (skills) =>
         set((s) => ({ resume: s.resume ? { ...s.resume, skills } : null, isDirty: true })),
+
+      setLanguages: (languages) =>
+        set((s) => ({ resume: s.resume ? { ...s.resume, languages } : null, isDirty: true })),
+
+      setCertifications: (certifications) =>
+        set((s) => ({ resume: s.resume ? { ...s.resume, certifications } : null, isDirty: true })),
 
       setTemplate: (templateId) =>
         set((s) => ({ resume: s.resume ? { ...s.resume, templateId } : null, isDirty: true })),

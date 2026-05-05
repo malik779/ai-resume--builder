@@ -9,6 +9,16 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const session = await auth();
 
+  // Admin routes: require session — role check happens server-side in requireAdmin()
+  if (pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) {
+    if (!session) {
+      const url = new URL("/login", request.url);
+      url.searchParams.set("callbackUrl", pathname);
+      return NextResponse.redirect(url);
+    }
+    return NextResponse.next();
+  }
+
   const isProtected = PROTECTED.some((p) => pathname.startsWith(p));
   const isAuthPath = AUTH_PATHS.some((p) => pathname.startsWith(p));
 

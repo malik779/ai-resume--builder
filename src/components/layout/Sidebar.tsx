@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   FileText, Briefcase, LayoutDashboard, Settings,
   Zap, Users, MessageSquare, TrendingUp, CreditCard,
@@ -27,7 +27,8 @@ interface SidebarProps {
 
 export function Sidebar({ userTier }: SidebarProps) {
   const pathname = usePathname();
-  const { sidebarOpen, toggleSidebar, openUpgradeModal } = useUIStore();
+  const router = useRouter();
+  const { sidebarOpen, toggleSidebar, openUpgradeModal, setNavigating } = useUIStore();
 
   const tierOrder: SubscriptionTier[] = ["FREE", "BASIC", "PRO", "ENTERPRISE"];
   const userTierIdx = tierOrder.indexOf(userTier);
@@ -40,7 +41,7 @@ export function Sidebar({ userTier }: SidebarProps) {
       {/* Logo */}
       <div className={cn("flex h-16 items-center border-b px-4", sidebarOpen ? "justify-between" : "justify-center")}>
         {sidebarOpen && (
-          <Link href="/dashboard" className="flex items-center gap-2">
+          <Link href="/dashboard" onClick={() => { if (!pathname.startsWith("/dashboard")) setNavigating(true); }} className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600">
               <Sparkles className="h-4 w-4 text-white" />
             </div>
@@ -66,7 +67,10 @@ export function Sidebar({ userTier }: SidebarProps) {
               key={item.href}
               onClick={() => {
                 if (isLocked) { openUpgradeModal(item.tier!); return; }
-                window.location.href = item.href;
+                if (!pathname.startsWith(item.href)) {
+                  setNavigating(true);
+                  router.push(item.href);
+                }
               }}
               className={cn(
                 "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
@@ -98,25 +102,38 @@ export function Sidebar({ userTier }: SidebarProps) {
           <div className="mx-1 mb-2 rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 p-3">
             <p className="text-xs font-semibold text-blue-800 mb-1">Unlock Pro Features</p>
             <p className="text-xs text-blue-600 mb-2">Job alignment, probability scoring, LinkedIn automation</p>
-            <Link href="/pricing" className="block w-full rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-1.5 text-center text-xs font-semibold text-white">
+            <button
+              onClick={() => { setNavigating(true); router.push("/pricing"); }}
+              className="block w-full rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-1.5 text-center text-xs font-semibold text-white"
+            >
               Upgrade Now
-            </Link>
+            </button>
           </div>
         )}
-        <Link href="/settings/billing" className={cn(
-          "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50",
-          !sidebarOpen && "justify-center"
-        )}>
+        <button
+          onClick={() => { if (!pathname.startsWith("/settings/billing")) { setNavigating(true); router.push("/settings/billing"); } }}
+          className={cn(
+            "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50",
+            pathname.startsWith("/settings/billing") && "bg-blue-50 text-blue-700",
+            !sidebarOpen && "justify-center"
+          )}
+          title={!sidebarOpen ? "Billing" : undefined}
+        >
           <CreditCard className="h-4 w-4" />
           {sidebarOpen && "Billing"}
-        </Link>
-        <Link href="/settings" className={cn(
-          "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50",
-          !sidebarOpen && "justify-center"
-        )}>
+        </button>
+        <button
+          onClick={() => { if (!pathname.startsWith("/settings")) { setNavigating(true); router.push("/settings"); } }}
+          className={cn(
+            "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50",
+            pathname.startsWith("/settings") && !pathname.startsWith("/settings/billing") && "bg-blue-50 text-blue-700",
+            !sidebarOpen && "justify-center"
+          )}
+          title={!sidebarOpen ? "Settings" : undefined}
+        >
           <Settings className="h-4 w-4" />
           {sidebarOpen && "Settings"}
-        </Link>
+        </button>
       </div>
     </aside>
   );

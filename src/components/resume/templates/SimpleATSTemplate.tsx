@@ -1,0 +1,173 @@
+import React from "react";
+import type { TemplateProps } from "./types";
+import { fullName, dateRange } from "./helpers";
+
+const DEFAULT_ORDER = ["summary", "experience", "education", "skills", "certifications"];
+
+export function SimpleATSTemplate({ resume, mainColor, dateFormat, skillsLayout, skillsColumns, sectionOrder }: TemplateProps) {
+  const { personalInfo, summary, experiences, educations, skills, certifications } = resume;
+  const name = fullName(personalInfo);
+
+  const sectionHeader: React.CSSProperties = {
+    fontSize: "var(--size-section)",
+    fontWeight: "var(--weight-h2)" as any,
+    color: mainColor,
+    borderBottom: `1.5px solid ${mainColor}40`,
+    paddingBottom: "2pt",
+    marginBottom: "var(--gap-title)",
+    marginTop: "var(--gap-sections)",
+    display: "flex",
+    alignItems: "center",
+    gap: "6pt",
+  };
+
+  const dash = <span style={{ width: "12pt", height: "2pt", background: mainColor, display: "inline-block", borderRadius: "1pt" }} />;
+
+  const order = sectionOrder ?? DEFAULT_ORDER;
+
+  const sections: Record<string, React.ReactNode> = {
+    summary: summary ? (
+      <>
+        <div style={sectionHeader}>{dash}Summary</div>
+        <p style={{ margin: 0, color: "#333" }}>{summary}</p>
+      </>
+    ) : null,
+
+    experience: experiences.length > 0 ? (
+      <>
+        <div style={sectionHeader}>{dash}Experience</div>
+        {experiences.map((exp) => (
+          <div key={exp.id} style={{ marginBottom: "var(--gap-content-blocks)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <div>
+                <strong style={{ fontSize: "10.5pt" }}>{exp.title}</strong>
+                {exp.company && <span style={{ color: "#333", marginLeft: "6pt" }}>— {exp.company}</span>}
+                {exp.location && <span style={{ color: "#888", marginLeft: "5pt", fontSize: "8.5pt" }}>· {exp.location}</span>}
+              </div>
+              <span style={{
+                color: "white",
+                background: mainColor,
+                fontSize: "7.5pt",
+                padding: "1pt 6pt",
+                borderRadius: "2pt",
+                whiteSpace: "nowrap",
+                marginLeft: "8pt",
+              }}>
+                {dateRange(exp.startDate, exp.endDate, exp.current, dateFormat)}
+              </span>
+            </div>
+            {exp.bullets.length > 0 && (
+              <ul style={{ margin: "3pt 0 0 0", paddingLeft: "14pt" }}>
+                {exp.bullets.map((b, i) => (
+                  <li key={i} style={{ marginBottom: "2pt", color: "#333" }}>{b}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ))}
+      </>
+    ) : null,
+
+    education: educations.length > 0 ? (
+      <>
+        <div style={sectionHeader}>{dash}Education</div>
+        {educations.map((edu) => (
+          <div key={edu.id} style={{ display: "flex", justifyContent: "space-between", marginBottom: "5pt" }}>
+            <div>
+              <strong>{edu.degree}{edu.field ? ` in ${edu.field}` : ""}</strong>
+              <span style={{ color: mainColor, marginLeft: "6pt", fontWeight: 600 }}>{edu.institution}</span>
+              {edu.gpa && <span style={{ color: "#777", marginLeft: "5pt", fontSize: "8.5pt" }}>· GPA {edu.gpa}</span>}
+            </div>
+            <span style={{ color: "#666", fontSize: "8.5pt", whiteSpace: "nowrap", marginLeft: "8pt" }}>
+              {dateRange(edu.startDate, edu.endDate, edu.current, dateFormat)}
+            </span>
+          </div>
+        ))}
+      </>
+    ) : null,
+
+    skills: skills.length > 0 ? (
+      <>
+        <div style={sectionHeader}>{dash}Skills</div>
+        {skillsLayout === "inline" ? (
+          <div style={{ color: "#333" }}>
+            {skills.map((s, i) => (
+              <span key={i}>
+                {s.name}
+                {i < skills.length - 1 && <span style={{ color: mainColor, margin: "0 5pt" }}>•</span>}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${skillsColumns}, 1fr)`, gap: "3pt" }}>
+            {skills.map((s, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: "4pt" }}>
+                <span style={{ width: "5pt", height: "5pt", borderRadius: "50%", background: mainColor, display: "inline-block", flexShrink: 0 }} />
+                {s.name}
+              </div>
+            ))}
+          </div>
+        )}
+      </>
+    ) : null,
+
+    certifications: certifications.length > 0 ? (
+      <>
+        <div style={sectionHeader}>{dash}Certifications</div>
+        {certifications.map((c, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: "space-between", marginBottom: "3pt" }}>
+            <span style={{ fontWeight: 600 }}>{c.name} <span style={{ fontWeight: 400, color: "#555" }}>· {c.issuer}</span></span>
+            {c.date && <span style={{ color: "#666", fontSize: "8.5pt" }}>{c.date}</span>}
+          </div>
+        ))}
+      </>
+    ) : null,
+  };
+
+  return (
+    <div style={{
+      fontFamily: "var(--font-secondary)",
+      fontSize: "var(--size-body)",
+      color: "#1a1a1a",
+      lineHeight: "var(--line-height)",
+      padding: "var(--margin-top) var(--margin-lr)",
+    }}>
+      {/* Header */}
+      <div style={{ marginBottom: "10pt" }}>
+        <h1 style={{
+          fontFamily: "var(--font-primary)",
+          fontSize: "var(--size-h1)",
+          fontWeight: "var(--weight-h1)" as any,
+          color: "#1a1a1a",
+          margin: "0 0 2pt 0",
+          lineHeight: 1.1,
+        }}>{name}</h1>
+        {personalInfo.headline && (
+          <div style={{ fontSize: "var(--size-h2)", color: mainColor, fontWeight: 500, marginBottom: "6pt" }}>
+            {personalInfo.headline}
+          </div>
+        )}
+        <div style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "0 14pt",
+          fontSize: "8.5pt",
+          color: "#444",
+          background: `${mainColor}08`,
+          padding: "5pt 8pt",
+          borderRadius: "3pt",
+          borderLeft: `3pt solid ${mainColor}`,
+        }}>
+          {[personalInfo.email, personalInfo.phone, personalInfo.location, personalInfo.linkedinUrl].filter(Boolean).map((v, i) => (
+            <span key={i}>{v}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* Body sections in dynamic order */}
+      {order.map((id) => (
+        <React.Fragment key={id}>{sections[id] ?? null}</React.Fragment>
+      ))}
+    </div>
+  );
+}

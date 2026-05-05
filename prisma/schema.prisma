@@ -89,6 +89,16 @@ enum MessageStatus {
   IGNORED
 }
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum TemplateType {
+  HANDCRAFTED
+  ENGINE
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // AUTH (NextAuth v5 + Prisma Adapter)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -144,6 +154,8 @@ model User {
   image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+
+  role      UserRole  @default(USER)
 
   // Auth relations
   accounts Account[]
@@ -469,4 +481,69 @@ model OutreachMessage {
 
   @@index([userId])
   @@map("outreach_messages")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEMPLATES (admin-managed, drives customer template picker)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Template {
+  id           String           @id @default(cuid())
+  slug         String           @unique
+  name         String
+  description  String?
+  type         TemplateType     @default(HANDCRAFTED)
+  engineConfig Json?            // EngineConfig JSON — only for ENGINE type
+  thumbnail    String?          // Public path, e.g. /uploads/templates/classic.png
+  previewColor String           @default("#374151")
+  tags         String[]         // ["free","photo","two-column","ats"]
+  minTier      SubscriptionTier @default(FREE)
+  isActive     Boolean          @default(true)
+  displayOrder Int              @default(0)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@map("templates")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PRICING PLANS (admin-managed, includes discount effectiveness)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PricingPlan {
+  id             String           @id @default(cuid())
+  tier           SubscriptionTier
+  interval       BillingInterval
+  stripePriceId  String?          // Stripe price ID
+  amountCents    Int              // Regular price in cents (e.g. 1900 = $19)
+  currency       String           @default("usd")
+  discountCents  Int?             // Discounted price in cents
+  discountLabel  String?          // Display label, e.g. "50% off — Launch special"
+  discountExpiry DateTime?        // When discount expires (null = no expiry)
+  couponId       String?          // Stripe coupon/promo code applied at checkout
+  isActive       Boolean          @default(true)
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([tier, interval])
+  @@map("pricing_plans")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SYSTEM CONFIG (key/value store for all runtime configuration)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model SystemConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique  // dot-notation, e.g. "ai.anthropic.apiKey"
+  value       String            // JSON-encoded or plain string
+  group       String            // "ai" | "stripe" | "tiers" | "features" | "app"
+  label       String            // Human-readable label shown in admin UI
+  description String?           // Help text
+  sensitive   Boolean  @default(false)  // Mask in UI (API keys, secrets)
+  valueType   String   @default("string") // "string" | "number" | "boolean" | "json"
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?           // User ID who last changed it
+
+  @@index([group])
+  @@map("system_configs")
 }
