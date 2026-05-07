@@ -3,6 +3,7 @@ import { getAdminSession } from "@/lib/admin-auth";
 import { db as prisma } from "@/lib/db";
 import { invalidateTemplateCache, HANDCRAFTED_SEED } from "@/lib/template-service";
 import { TEMPLATE_META } from "@/types/resume";
+import { Prisma } from "@prisma/client";
 
 export async function GET() {
   if (!await getAdminSession()) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -21,12 +22,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "slug, name, and type are required" }, { status: 400 });
   }
 
-  const template = await prisma.template.create({
-    data: { slug, name, description, type, engineConfig, previewColor: previewColor ?? "#374151", tags: tags ?? [], minTier: minTier ?? "FREE", displayOrder: displayOrder ?? 0 },
-  });
-
-  invalidateTemplateCache();
-  return NextResponse.json(template, { status: 201 });
+  try {
+    const template = await prisma.template.create({
+      data: { slug, name, description, type, engineConfig, previewColor: previewColor ?? "#374151", tags: tags ?? [], minTier: minTier ?? "FREE", displayOrder: displayOrder ?? 0 },
+    });
+    invalidateTemplateCache();
+    return NextResponse.json(template, { status: 201 });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return NextResponse.json({ error: `A template with slug "${slug}" already exists` }, { status: 409 });
+    }
+    throw e;
+  }
 }
 
 // Seed the 8 handcrafted templates — idempotent, safe to call multiple times

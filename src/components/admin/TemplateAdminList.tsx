@@ -1,10 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Edit, Trash2, ImagePlus, Layers } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import type { Template } from "@prisma/client";
+import type { EngineConfig } from "@/components/resume/templates/engine";
+import { createEngineRenderer } from "@/components/resume/templates/EngineRenderer";
+import {
+  SAMPLE_RESUME,
+  PREVIEW_CSS_VARS,
+  PREVIEW_TEMPLATE_PROPS,
+} from "@/components/resume/templates/sample-resume";
 
 interface Props {
   templates: Template[];
@@ -16,6 +23,40 @@ const TIER_COLORS: Record<string, string> = {
   PRO: "bg-violet-900 text-violet-300",
   ENTERPRISE: "bg-amber-900 text-amber-300",
 };
+
+// ── Mini live thumbnail for ENGINE templates ───────────────────────────────────
+
+const THUMB_SCALE = 0.25;
+
+function EngineTemplateThumbnail({ engineConfig, previewColor }: {
+  engineConfig: unknown;
+  previewColor: string;
+}) {
+  const config = engineConfig as EngineConfig;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const Component = useMemo(() => createEngineRenderer(config), [JSON.stringify(config)]);
+
+  return (
+    <div className="w-full h-44 overflow-hidden relative bg-white">
+      <div style={{
+        ...PREVIEW_CSS_VARS,
+        width:           794,
+        transform:       `scale(${THUMB_SCALE})`,
+        transformOrigin: "top left",
+        position:        "absolute",
+        top: 0, left: 0,
+      }}>
+        <Component
+          {...PREVIEW_TEMPLATE_PROPS}
+          resume={SAMPLE_RESUME}
+          mainColor={previewColor}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Main list ─────────────────────────────────────────────────────────────────
 
 export function TemplateAdminList({ templates: initial }: Props) {
   const router = useRouter();
@@ -86,26 +127,38 @@ export function TemplateAdminList({ templates: initial }: Props) {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
         {templates.map((t) => (
-          <div key={t.id} className={cn("bg-gray-900 border rounded-xl overflow-hidden", t.isActive ? "border-gray-800" : "border-gray-800 opacity-60")}>
+          <div
+            key={t.id}
+            className={cn(
+              "bg-gray-900 border rounded-xl overflow-hidden flex flex-col",
+              t.isActive ? "border-gray-800" : "border-gray-800 opacity-50",
+            )}
+          >
             {/* Thumbnail */}
-            <div className="relative aspect-[210/297] bg-gray-800 group">
+            <div className="relative group shrink-0">
+              {/* Prefer an uploaded thumbnail image */}
               {t.thumbnail ? (
-                <img src={t.thumbnail} alt={t.name} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center gap-2">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: t.previewColor }}>
-                    <span className="text-white text-sm font-bold">{t.name[0]}</span>
-                  </div>
-                  <span className="text-gray-500 text-xs">No thumbnail</span>
+                <div className="h-44 overflow-hidden">
+                  <img src={t.thumbnail} alt={t.name} className="w-full h-full object-cover object-top" />
                 </div>
+              ) : t.type === "ENGINE" && t.engineConfig ? (
+                /* Live-rendered mini preview for ENGINE templates */
+                <EngineTemplateThumbnail
+                  engineConfig={t.engineConfig}
+                  previewColor={t.previewColor}
+                />
+              ) : (
+                /* Fallback colour swatch for HANDCRAFTED templates */
+                <div className="h-44" style={{ backgroundColor: t.previewColor }} />
               )}
+
               {/* Upload overlay */}
-              <label className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+              <label className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                 <div className="flex flex-col items-center gap-1">
-                  <ImagePlus className="w-6 h-6 text-white" />
-                  <span className="text-white text-xs font-medium">Upload thumbnail</span>
+                  <ImagePlus className="w-5 h-5 text-white" />
+                  <span className="text-white text-[10px] font-medium">Upload thumbnail</span>
                 </div>
                 <input
                   type="file"
@@ -117,60 +170,50 @@ export function TemplateAdminList({ templates: initial }: Props) {
             </div>
 
             {/* Info */}
-            <div className="p-4">
-              <div className="flex items-start justify-between gap-2 mb-1">
-                <div>
-                  <p className="text-sm font-semibold text-white">{t.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{t.description}</p>
-                </div>
-                <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold shrink-0", TIER_COLORS[t.minTier])}>
+            <div className="p-3 flex flex-col flex-1 gap-2">
+              <div className="flex items-start justify-between gap-1">
+                <p className="text-xs font-semibold text-white leading-tight">{t.name}</p>
+                <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0", TIER_COLORS[t.minTier])}>
                   {t.minTier}
                 </span>
               </div>
 
-              {/* Tags */}
-              {t.tags.length > 0 && (
-                <div className="flex gap-1 flex-wrap mt-2 mb-3">
-                  {t.tags.map((tag) => (
-                    <span key={tag} className="px-1.5 py-0.5 bg-gray-800 text-gray-400 text-[10px] rounded font-medium">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {/* Type badge */}
-              <div className="flex items-center gap-1 mb-3">
-                <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", t.type === "ENGINE" ? "bg-emerald-900 text-emerald-300" : "bg-sky-900 text-sky-300")}>
+              {/* Badges row */}
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className={cn(
+                  "px-1.5 py-0.5 rounded text-[9px] font-medium",
+                  t.type === "ENGINE" ? "bg-emerald-900 text-emerald-300" : "bg-sky-900 text-sky-300",
+                )}>
                   {t.type}
                 </span>
-                <span className="text-gray-600 text-[10px]">#{t.displayOrder}</span>
+                <span className="text-gray-600 text-[9px]">#{t.displayOrder}</span>
               </div>
 
               {/* Actions */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 mt-auto pt-1">
                 <button
                   onClick={() => toggleActive(t.id, t.isActive)}
+                  title={t.isActive ? "Deactivate" : "Activate"}
                   className={cn(
-                    "flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                    "flex-1 flex items-center justify-center py-1 rounded-lg text-[10px] font-medium transition-colors",
                     t.isActive
-                      ? "bg-gray-800 text-gray-300 hover:bg-gray-700"
-                      : "bg-emerald-900/50 text-emerald-400 hover:bg-emerald-900"
+                      ? "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                      : "bg-emerald-900/50 text-emerald-400 hover:bg-emerald-900",
                   )}
                 >
-                  {t.isActive ? <><EyeOff className="w-3.5 h-3.5" /> Deactivate</> : <><Eye className="w-3.5 h-3.5" /> Activate</>}
+                  {t.isActive ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                 </button>
                 <a
                   href={`/admin/templates/${t.id}/edit`}
-                  className="p-1.5 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+                  className="p-1 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
                 >
-                  <Edit className="w-3.5 h-3.5" />
+                  <Edit className="w-3 h-3" />
                 </a>
                 <button
                   onClick={() => handleDelete(t.id)}
-                  className="p-1.5 rounded-lg bg-gray-800 text-gray-400 hover:text-red-400 hover:bg-gray-700 transition-colors"
+                  className="p-1 rounded-lg bg-gray-800 text-gray-400 hover:text-red-400 hover:bg-gray-700 transition-colors"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <Trash2 className="w-3 h-3" />
                 </button>
               </div>
             </div>

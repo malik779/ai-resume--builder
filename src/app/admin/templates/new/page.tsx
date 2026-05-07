@@ -4,7 +4,7 @@ import { TemplateForm } from "@/components/admin/TemplateForm";
 export default async function NewTemplatePage() {
   await requireAdmin();
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-8">
       <a href="/admin/templates" className="text-gray-500 hover:text-gray-300 text-sm mb-6 inline-flex items-center gap-1">
         ← Back to templates
       </a>

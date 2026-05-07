@@ -34,6 +34,40 @@ export type SidebarBgMode =
   | "light-warm"    // #fdf8f3
   | "light-accent"; // mainColor tinted 8%
 
+export type LayoutShell = "single" | "sidebar-left" | "sidebar-right" | "two-column";
+
+// ── Layout variants ────────────────────────────────────────────────────────────
+
+export type LayoutVariant =
+  // Sidebar shells
+  | "full-height"     // sidebar bg fills full document height (default)
+  | "floating"        // sidebar as a floating card with border-radius + shadow
+  | "header-hybrid"   // full-width accent bridge strip between header and body
+  | "narrow-accent"   // purely decorative thin sidebar strip (~14% width)
+  // Single-column shell
+  | "standard"        // full width (default)
+  | "centered"        // content max-width centered with auto margins
+  // Two-column shell
+  | "equal"           // 50/50 split (default)
+  | "main-heavy"      // 65/35 left-heavy
+  | "sidebar-accent"; // right column receives accent background
+
+export type HeaderPosition = "inline" | "full-width";
+export type SidebarAlign   = "top" | "center" | "stretch";
+export type SidebarStyle   = "solid" | "card" | "minimal";
+
+export interface CompositionConfig {
+  layoutVariant?:  LayoutVariant;
+  headerPosition?: HeaderPosition;
+  sidebarAlign?:   SidebarAlign;
+  sidebarStyle?:   SidebarStyle;
+}
+
+export interface RegionMap {
+  main: string[];      // ordered section keys rendered in main column
+  sidebar?: string[];  // ordered section keys rendered in sidebar column
+}
+
 export interface SidebarCfg {
   side: "left" | "right";
   width: string;
@@ -41,15 +75,24 @@ export interface SidebarCfg {
 }
 
 export interface EngineConfig {
+  // ── Visual styles (always required) ──────────────────────────────────────────
   header: HeaderStyle;
   section: SectionStyle;
-  layout: "single" | SidebarCfg;
   bulletChar?: string;
   nameColor?: "dark" | "accent";
   headlineColor?: "accent" | "muted";
   uppercase?: boolean;
   showPhoto?: boolean;    // circular photo in header (right side)
   sidebarPhoto?: boolean; // photo at top of sidebar panel
+
+  // ── OLD layout field — kept for the 42 pre-built engine templates ─────────
+  layout?: "single" | SidebarCfg;
+
+  // ── NEW region-based layout (takes precedence over layout when present) ────
+  shell?: LayoutShell;
+  sidebar?: { width: number; bg: SidebarBgMode }; // width = percentage (e.g. 30)
+  regions?: RegionMap;
+  composition?: CompositionConfig;
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────

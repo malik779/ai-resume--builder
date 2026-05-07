@@ -99,6 +99,12 @@ enum TemplateType {
   ENGINE
 }
 
+enum ChatRole {
+  USER
+  ASSISTANT
+  TOOL
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // AUTH (NextAuth v5 + Prisma Adapter)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -169,6 +175,7 @@ model User {
   aiUsageLogs    AiUsageLog[]
   contacts       Contact[]
   messages       OutreachMessage[]
+  chatSessions   ChatSession[]
 
   @@map("users")
 }
@@ -221,6 +228,9 @@ model Resume {
   certifications Json @default("[]") // Certification[]
   awards       Json @default("[]")   // Award[]
   customSections Json @default("[]") // CustomSection[]
+
+  // Customization: mainColor, text settings, layout settings (ResumeTheme shape)
+  theme        Json @default("{}")
 
   // ATS metadata
   atsScore     Int?
@@ -314,6 +324,39 @@ model ResumeVersion {
 
   @@index([resumeId])
   @@map("resume_versions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI CONVERSATION (Phase 3 — chat-driven resume orchestration)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ChatSession {
+  id        String   @id  // client-supplied UUID; server records on first message
+  userId    String
+  resumeId  String?
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@index([userId, createdAt])
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  sessionId String
+  role      ChatRole
+  content   String
+  toolCalls Json?    // ActionPlan items + results when role = ASSISTANT or TOOL
+  createdAt DateTime @default(now())
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@map("chat_messages")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

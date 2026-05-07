@@ -100,8 +100,15 @@ export async function resolveTemplateComponent(slug: string): Promise<FC<Templat
     const { db: dbClient } = await import("@/lib/db");
     const row = await dbClient.template.findUnique({ where: { slug } });
     if (row?.type === "ENGINE" && row.engineConfig) {
+      const config = row.engineConfig as Record<string, unknown>;
+      if (config.shell) {
+        // New-style: region-based renderer
+        const { createEngineRenderer } = await import("@/components/resume/templates/EngineRenderer");
+        return createEngineRenderer(config as unknown as Parameters<typeof createEngineRenderer>[0]);
+      }
+      // Old-style: factory-based renderer (backward compat with 42 pre-built templates)
       const { createTemplate } = await import("@/components/resume/templates/engine");
-      return createTemplate(row.engineConfig as unknown as Parameters<typeof createTemplate>[0]);
+      return createTemplate(config as unknown as Parameters<typeof createTemplate>[0]);
     }
   } catch {
     // pass

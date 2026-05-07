@@ -6,6 +6,7 @@ import { useResumeStore } from "@/stores/resume.store";
 import { useCustomizeStore } from "@/stores/customize.store";
 import { useAutoSave } from "@/hooks/useResume";
 import { resolveTemplateId } from "@/types/resume";
+import type { ResumeTheme } from "@/domains/resume";
 
 import { EditPanel } from "./EditPanel";
 import { AIWriterPanel } from "./AIWriterPanel";
@@ -13,6 +14,7 @@ import { AIReviewPanel } from "./AIReviewPanel";
 import { TailorPanel } from "./TailorPanel";
 import { ResumeCanvas } from "./ResumeCanvas";
 import { CustomizePanel } from "./customize/CustomizePanel";
+import { ConversationPanel } from "../conversation/ConversationPanel";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
@@ -25,7 +27,7 @@ import type { Resume } from "@/types/resume";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type Mode = "edit" | "customize" | "ai-review" | "tailor";
+type Mode = "edit" | "customize" | "ai-chat" | "ai-review" | "tailor";
 
 interface HeaderTab {
   id: Mode;
@@ -36,8 +38,9 @@ interface HeaderTab {
 const TABS: HeaderTab[] = [
   { id: "edit",      label: "Edit" },
   { id: "customize", label: "Customize" },
+  { id: "ai-chat",   label: "AI Chat", badge: "NEW" },
   { id: "ai-review", label: "AI Review" },
-  { id: "tailor",    label: "Tailor", badge: "NEW" },
+  { id: "tailor",    label: "Tailor" },
 ];
 
 // ─── Settings modal ─────────────────────────────────────────────────────────
@@ -90,7 +93,10 @@ interface ResumeEditorProps {
 export function ResumeEditor({ resumeData, canExport, watermark }: ResumeEditorProps) {
   const router = useRouter();
   const { resume, setResume, isDirty, isSaving } = useResumeStore();
-  const { setTemplate: setCustomizeTemplate } = useCustomizeStore();
+  const setCustomizeTemplate = useCustomizeStore((s) => s.setTemplate);
+  const setMainColor = useCustomizeStore((s) => s.setMainColor);
+  const updateText = useCustomizeStore((s) => s.updateText);
+  const updateLayout = useCustomizeStore((s) => s.updateLayout);
   const { save } = useAutoSave(resumeData.id);
 
   const [mode, setMode] = useState<Mode>("edit");
@@ -125,6 +131,15 @@ export function ResumeEditor({ resumeData, canExport, watermark }: ResumeEditorP
       updatedAt: resumeData.updatedAt,
     });
     setCustomizeTemplate(resolveTemplateId(resumeData.templateId));
+
+    // Hydrate customize store from persisted Resume.theme (Phase 2 carry-over).
+    // Only seed fields that exist in the saved theme; other fields keep defaults.
+    const persisted = (resumeData as unknown as { theme?: ResumeTheme | null }).theme;
+    if (persisted && typeof persisted === "object") {
+      if (typeof persisted.mainColor === "string") setMainColor(persisted.mainColor);
+      if (persisted.text && Object.keys(persisted.text).length > 0) updateText(persisted.text);
+      if (persisted.layout && Object.keys(persisted.layout).length > 0) updateLayout(persisted.layout);
+    }
   }, [resumeData.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keyboard zoom shortcuts
@@ -332,6 +347,11 @@ export function ResumeEditor({ resumeData, canExport, watermark }: ResumeEditorP
             {mode === "customize" && (
               <div className="flex-1 overflow-hidden">
                 <CustomizePanel />
+              </div>
+            )}
+            {mode === "ai-chat" && (
+              <div className="flex-1 overflow-hidden">
+                <ConversationPanel resumeId={resumeData.id} />
               </div>
             )}
             {mode === "tailor" && (

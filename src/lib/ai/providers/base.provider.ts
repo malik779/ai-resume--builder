@@ -17,6 +17,14 @@ export abstract class BaseAIProvider implements IAIProvider {
 
   protected abstract callModel(system: string, user: string): Promise<{ text: string; promptTokens: number; outputTokens: number }>;
 
+  // Public access to the raw model call. Used by the ai-core generic provider
+  // adapter (src/domains/resume/services/ai-provider.ts) so resume actions can
+  // call .complete() / .completeJSON<T>() without going through resume-coupled
+  // methods like enhance/alignJob.
+  public rawComplete(system: string, user: string): Promise<{ text: string; promptTokens: number; outputTokens: number }> {
+    return this.callModel(system, user);
+  }
+
   protected async callAndParse<T>(system: string, user: string, transform: (raw: Record<string, unknown>) => T): Promise<T> {
     const { text } = await this.callModel(system, user);
     const raw = this.parseJSON(text);

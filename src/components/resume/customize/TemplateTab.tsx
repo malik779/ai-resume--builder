@@ -29,9 +29,27 @@ export function TemplateTab() {
       .catch(() => {});
   }, []);
 
-  const handleSelectTemplate = (id: string) => {
+  const resumeId = useResumeStore((s) => s.resume?.id);
+
+  const handleSelectTemplate = async (id: string) => {
+    // Optimistic local update
     setTemplate(id as Parameters<typeof setTemplate>[0]);
     setStoreTemplate(id as Parameters<typeof setStoreTemplate>[0]);
+
+    // Persist via the resume.template.select action.
+    if (resumeId) {
+      try {
+        await fetch(`/api/resume/${resumeId}/template`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ templateId: id }),
+        });
+      } catch {
+        // Action endpoint failure is non-fatal — autosave keeps the existing
+        // PATCH path in place. Surface this via the editor's save status if
+        // we move to action-only persistence in a later phase.
+      }
+    }
   };
 
   const filteredTemplates = templateFilter === "all"
