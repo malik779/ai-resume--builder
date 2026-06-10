@@ -2,9 +2,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { resumeRepository } from "@/lib/db";
 import prisma from "@/lib/db/client";
-import Anthropic from "@anthropic-ai/sdk";
-
-const anthropic = new Anthropic();
+import { createParseClient } from "@/lib/ai/parse-client";
+import { extractDocument, DocumentExtractionError } from "@/domains/resume/server";
 
 const PARSE_SYSTEM = `You are an expert resume parser. Extract ALL resume data into the exact JSON schema provided.
 Rules:
@@ -26,29 +25,6 @@ const RESUME_SCHEMA = {
   awards: [{ title: "", issuer: "", date: "", description: "" }],
 };
 
-async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
-  // Use Claude's vision capabilities for PDF parsing
-  // Convert to base64
-  const base64 = Buffer.from(buffer).toString("base64");
-
-  const response = await anthropic.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 2000,
-    messages: [{
-      role: "user",
-      content: [{
-        type: "document",
-        source: { type: "base64", media_type: "application/pdf", data: base64 },
-      }, {
-        type: "text",
-        text: "Extract all text content from this resume PDF. Return the raw text only, preserving structure with newlines.",
-      }],
-    }],
-  });
-
-  return response.content[0].type === "text" ? response.content[0].text : "";
-}
-
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -63,36 +39,32 @@ export async function POST(req: Request) {
     if (file.size > maxBytes) return NextResponse.json({ error: "File too large (max 15MB)" }, { status: 400 });
 
     const buffer = await file.arrayBuffer();
-    let rawText = "";
 
-    const isPDF = file.type === "application/pdf" || file.name.endsWith(".pdf");
-    const isDOCX = file.type.includes("wordprocessingml") || file.name.endsWith(".docx") || file.name.endsWith(".doc");
-
-    if (isPDF) {
-      rawText = await extractTextFromPDF(buffer);
-    } else if (isDOCX) {
-      // For DOCX, decode the raw text (basic extraction — install mammoth for better results)
-      rawText = Buffer.from(buffer).toString("utf-8").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-    } else {
-      rawText = Buffer.from(buffer).toString("utf-8");
+    // Canonical extraction seam: MarkItDown worker (local-first) for text-layer
+    // PDFs / DOCX / etc., with Claude vision + mammoth fallbacks. Shared with
+    // the chat upload route — no parallel extraction logic here.
+    let rawText: string;
+    try {
+      const extraction = await extractDocument({
+        filename: file.name,
+        mimeType: file.type,
+        buffer,
+      });
+      rawText = extraction.rawText;
+    } catch (e) {
+      if (e instanceof DocumentExtractionError) {
+        const status = e.code === "UNSUPPORTED_FORMAT" ? 415 : 422;
+        return NextResponse.json({ error: e.message }, { status });
+      }
+      throw e;
     }
 
-    if (!rawText || rawText.length < 50) {
-      return NextResponse.json({ error: "Could not extract text from the file. Try a different format." }, { status: 422 });
-    }
-
-    // AI parsing with Claude
-    const parseResponse = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 4000,
-      system: PARSE_SYSTEM,
-      messages: [{
-        role: "user",
-        content: `Parse this resume into JSON:\n\n${rawText}\n\nSchema:\n${JSON.stringify(RESUME_SCHEMA, null, 2)}`,
-      }],
-    });
-
-    const jsonText = parseResponse.content[0].type === "text" ? parseResponse.content[0].text : "{}";
+    // AI parsing — provider + model are admin-configurable (anthropic / openai / deepseek)
+    const parseClient = await createParseClient();
+    const jsonText = await parseClient.complete(
+      PARSE_SYSTEM,
+      `Parse this resume into JSON:\n\n${rawText}\n\nSchema:\n${JSON.stringify(RESUME_SCHEMA, null, 2)}`,
+    );
     let parsed: any;
     try {
       parsed = JSON.parse(jsonText.replace(/```json\n?|\n?```/g, "").trim());

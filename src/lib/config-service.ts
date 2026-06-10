@@ -19,7 +19,9 @@ const cache = new Map<string, CacheEntry>();
 const ENV_FALLBACKS: Record<string, string | undefined> = {
   "ai.anthropic.apiKey":        process.env.ANTHROPIC_API_KEY,
   "ai.openai.apiKey":           process.env.OPENAI_API_KEY,
+  "ai.deepseek.apiKey":         process.env.DEEPSEEK_API_KEY,
   "ai.defaultProvider":         process.env.AI_DEFAULT_PROVIDER ?? "anthropic",
+  "ai.parse.provider":          process.env.AI_PARSE_PROVIDER ?? "anthropic",
   "ai.model.review":            process.env.AI_MODEL_REVIEW ?? "claude-sonnet-4-6",
   "ai.model.tailor":            process.env.AI_MODEL_TAILOR ?? "claude-sonnet-4-6",
   "ai.model.chat":              process.env.AI_MODEL_CHAT ?? "claude-haiku-4-5-20251001",
@@ -121,7 +123,9 @@ export const CONFIG_SCHEMA: Array<{
   // AI
   { key: "ai.anthropic.apiKey",   group: "ai", label: "Anthropic API Key",      sensitive: true,  valueType: "string" },
   { key: "ai.openai.apiKey",      group: "ai", label: "OpenAI API Key",          sensitive: true,  valueType: "string" },
+  { key: "ai.deepseek.apiKey",    group: "ai", label: "DeepSeek API Key",        sensitive: true,  valueType: "string" },
   { key: "ai.defaultProvider",    group: "ai", label: "Default AI Provider",     description: "anthropic or openai", valueType: "string" },
+  { key: "ai.parse.provider",     group: "ai", label: "Resume Parser Provider",  description: "anthropic | openai | deepseek", valueType: "string" },
   { key: "ai.model.review",       group: "ai", label: "Model — AI Review",       valueType: "string" },
   { key: "ai.model.tailor",       group: "ai", label: "Model — Tailoring",       valueType: "string" },
   { key: "ai.model.chat",         group: "ai", label: "Model — Chat",            valueType: "string" },

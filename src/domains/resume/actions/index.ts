@@ -44,3 +44,10 @@ export {
   type AutoBuildInput,
   type AutoBuildOutput,
 } from "./auto-build-from-parse";
+export {
+  createIngestTemplateScreenshotAction,
+  type IngestTemplateDeps,
+  type IngestTemplateScreenshotInput,
+  type IngestTemplateScreenshotOutput,
+  type IngestTemplateSource,
+} from "./ingest-template-screenshot";

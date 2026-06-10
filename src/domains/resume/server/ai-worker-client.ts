@@ -26,17 +26,35 @@ export interface LayoutInput {
   buffer: ArrayBuffer;
 }
 
-// Phase 6 will fill this out — Phase 5 ships the contract only.
 export interface LayoutResult {
-  shell: string;
+  shell: "single" | "sidebar-left" | "sidebar-right" | "two-column";
   regions: { main: string[]; sidebar?: string[] };
+  // Phase 6 additions — all optional so old worker versions remain compatible
+  header?: string;
+  section?: string;
+  uppercase?: boolean;
+  sidebarWidthPct?: number;
+  sidebarBg?: string;
   confidence: number;
+}
+
+export interface ConvertInput {
+  filename: string;
+  mimeType: string;
+  buffer: ArrayBuffer;
+}
+
+export interface ConvertResult {
+  markdown: string;
+  chars: number;
+  source: "local";
 }
 
 export interface AIWorkerClient {
   available(): Promise<boolean>;
   extractOcr(input: OcrInput): Promise<OcrResult>;
   extractLayout(input: LayoutInput): Promise<LayoutResult>;
+  convertDocument(input: ConvertInput): Promise<ConvertResult>;
 }
 
 export class WorkerUnavailableError extends Error {
@@ -127,6 +145,39 @@ export class HttpAIWorkerClient implements AIWorkerClient {
     };
   }
 
+  async convertDocument(input: ConvertInput): Promise<ConvertResult> {
+    if (!(await this.available())) {
+      throw new WorkerUnavailableError(
+        "WORKER_DOWN",
+        "AI worker is not reachable",
+      );
+    }
+    const fd = new FormData();
+    fd.set(
+      "file",
+      new Blob([input.buffer], { type: input.mimeType }),
+      input.filename,
+    );
+    const r = await fetchWithTimeout(`${this.baseUrl}/convert/document`, {
+      method: "POST",
+      body: fd,
+      timeoutMs: 30_000,
+    });
+    if (!r.ok) {
+      // 422 = too little text extracted (e.g. scanned PDF) → caller falls back.
+      // 503 = markitdown unavailable. Both map to a recoverable error code.
+      const code =
+        r.status === 422 ? "WORKER_INSUFFICIENT_TEXT" : "WORKER_CONVERT_FAILED";
+      throw new WorkerUnavailableError(code, `Worker returned ${r.status}`);
+    }
+    const body = (await r.json()) as { markdown?: string; chars?: number };
+    return {
+      markdown: body.markdown ?? "",
+      chars: typeof body.chars === "number" ? body.chars : 0,
+      source: "local",
+    };
+  }
+
   async extractLayout(input: LayoutInput): Promise<LayoutResult> {
     if (!(await this.available())) {
       throw new WorkerUnavailableError(
@@ -153,8 +204,13 @@ export class HttpAIWorkerClient implements AIWorkerClient {
     }
     const body = (await r.json()) as Partial<LayoutResult>;
     return {
-      shell: body.shell ?? "single-column",
+      shell: (body.shell as LayoutResult["shell"]) ?? "single",
       regions: body.regions ?? { main: [] },
+      header: body.header,
+      section: body.section,
+      uppercase: body.uppercase,
+      sidebarWidthPct: body.sidebarWidthPct,
+      sidebarBg: body.sidebarBg,
       confidence: body.confidence ?? 0,
     };
   }
@@ -172,6 +228,12 @@ export class NullAIWorkerClient implements AIWorkerClient {
     );
   }
   async extractLayout(): Promise<LayoutResult> {
+    throw new WorkerUnavailableError(
+      "WORKER_NOT_CONFIGURED",
+      "AI_WORKER_URL is not set",
+    );
+  }
+  async convertDocument(): Promise<ConvertResult> {
     throw new WorkerUnavailableError(
       "WORKER_NOT_CONFIGURED",
       "AI_WORKER_URL is not set",

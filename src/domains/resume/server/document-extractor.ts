@@ -142,6 +142,26 @@ async function extractDocx(buffer: ArrayBuffer): Promise<string> {
   return result.value;
 }
 
+// Local-first structured-text extraction via the AI worker (MarkItDown).
+// Returns clean Markdown for text-layer PDFs, DOCX, XLSX, PPTX, HTML, …
+// Returns null when the worker is unavailable or extracts too little text
+// (e.g. scanned PDFs) so the caller falls back to the format's default path.
+async function tryWorkerConvert(input: ExtractInput): Promise<string | null> {
+  const worker = getAIWorkerClient();
+  if (!(await worker.available())) return null;
+  try {
+    const { markdown } = await worker.convertDocument({
+      filename: input.filename,
+      mimeType: input.mimeType,
+      buffer: input.buffer,
+    });
+    return markdown.trim().length >= 50 ? markdown : null;
+  } catch (e) {
+    if (!(e instanceof WorkerUnavailableError)) throw e;
+    return null; // WORKER_DOWN / INSUFFICIENT_TEXT / NOT_CONFIGURED → fall back
+  }
+}
+
 function extractTxt(buffer: ArrayBuffer): string {
   return Buffer.from(buffer).toString("utf-8");
 }
@@ -198,13 +218,31 @@ export async function extractDocument(
   let confidence = 1;
 
   if (format === "pdf") {
-    rawText = await extractPdfViaVision(input.buffer);
-    source = "claude-vision";
-    confidence = 0.85;
+    // Text-layer PDFs: MarkItDown extracts cleanly & cheaply (no vision tokens).
+    // Scanned/image PDFs return too little text → fall back to Claude vision.
+    const worker = await tryWorkerConvert(input);
+    if (worker) {
+      rawText = worker;
+      source = "local-worker";
+      confidence = 0.9;
+    } else {
+      rawText = await extractPdfViaVision(input.buffer);
+      source = "claude-vision";
+      confidence = 0.85;
+    }
   } else if (format === "docx") {
-    rawText = await extractDocx(input.buffer);
-    source = "deterministic";
-    confidence = 0.95;
+    // MarkItDown (python-docx) preserves headings/tables; mammoth is the
+    // deterministic fallback when the worker is unavailable.
+    const worker = await tryWorkerConvert(input);
+    if (worker) {
+      rawText = worker;
+      source = "local-worker";
+      confidence = 0.95;
+    } else {
+      rawText = await extractDocx(input.buffer);
+      source = "deterministic";
+      confidence = 0.95;
+    }
   } else if (format === "txt") {
     rawText = extractTxt(input.buffer);
     source = "deterministic";

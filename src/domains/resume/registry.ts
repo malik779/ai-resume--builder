@@ -3,6 +3,7 @@ import type { ActionRegistry, IOrchestrator } from "@/ai-core";
 import type { ResumeRepository } from "@/lib/db/repositories/resume.repository";
 import type { TemplateMeta } from "@/lib/template-service";
 import type { AiUsageRecorder } from "./server/telemetry";
+import type { AIWorkerClient } from "./server/ai-worker-client";
 import {
   createCreateResumeAction,
   createUpdateSectionAction,
@@ -11,6 +12,7 @@ import {
   createGenerateSummaryAction,
   createParseUploadAction,
   createAutoBuildFromParseAction,
+  createIngestTemplateScreenshotAction,
 } from "./actions";
 import { regenerateSummaryWorkflow, parseAndBuildWorkflow } from "./workflows";
 import type { ResumeProviderRouter } from "./services/ai-provider";
@@ -22,6 +24,8 @@ export interface ResumeDomainDeps {
   router: ResumeProviderRouter;
   // Phase 5: optional AI usage telemetry. Falsy = no telemetry (tests, dev).
   aiUsage?: AiUsageRecorder;
+  // Phase 6: optional AI worker client for local OCR + layout detection.
+  getWorkerClient?: () => AIWorkerClient;
 }
 
 export function registerResumeActions(
@@ -46,6 +50,14 @@ export function registerResumeActions(
   registry.register(
     createAutoBuildFromParseAction({ resumes: deps.resumes, db: deps.db }),
   );
+  if (deps.getWorkerClient) {
+    registry.register(
+      createIngestTemplateScreenshotAction({
+        getWorkerClient: deps.getWorkerClient,
+        aiUsage: deps.aiUsage,
+      }),
+    );
+  }
 }
 
 export function registerResumeWorkflows(orchestrator: IOrchestrator): void {

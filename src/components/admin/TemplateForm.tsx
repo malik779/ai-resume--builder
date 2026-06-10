@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
 import { ChevronUp, ChevronDown, X, Plus } from "lucide-react";
+import { TemplateIngestionPanel } from "./TemplateIngestionPanel";
+import type { IngestionApplyPayload } from "./TemplateIngestionPanel";
 import type { Template } from "@prisma/client";
 import type {
   LayoutShell, LayoutVariant, HeaderPosition, SidebarAlign, SidebarStyle,
@@ -202,6 +204,18 @@ export function TemplateForm({ template }: Props) {
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState("");
 
+  const handleIngestionApply = useCallback((p: IngestionApplyPayload) => {
+    handleShellChange(p.shell);
+    setHeaderStyle(p.header);
+    setSectionStyle(p.section);
+    setUppercase(p.uppercase);
+    if (p.sidebarWidthPct != null) setSidebarWidth(p.sidebarWidthPct);
+    if (p.sidebarBg)               setSidebarBg(p.sidebarBg);
+    if (p.mainSections.length > 0) setMainSections(p.mainSections);
+    if (p.sidebarSections && p.sidebarSections.length > 0) setSidebarSections(p.sidebarSections);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const toggleTag  = (tag: string) =>
     setTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]);
   const autoSlug   = (v: string) =>
@@ -320,7 +334,9 @@ export function TemplateForm({ template }: Props) {
   return (
     <div className="flex gap-8 items-start">
     {/* ── Left: scrollable form ── */}
-    <form onSubmit={handleSubmit} className="flex-1 min-w-0 space-y-8">
+    <div className="flex-1 min-w-0 space-y-8">
+    <TemplateIngestionPanel onApply={handleIngestionApply} />
+    <form onSubmit={handleSubmit} className="space-y-8">
 
       {/* ── Basic info ── */}
       <section className="bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-4">
@@ -578,6 +594,7 @@ export function TemplateForm({ template }: Props) {
         </a>
       </div>
     </form>
+    </div>
 
     {/* ── Right: sticky live preview ── */}
     <div className="sticky top-8 shrink-0 w-[560px]">

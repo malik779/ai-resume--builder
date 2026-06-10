@@ -30,3 +30,4 @@ export {
   type ExecutionStepResult,
 } from "./conversation";
 export { sessionId } from "@/ai-core";
+export { ResumeDomainAdapter } from "./adapter";

@@ -8,6 +8,8 @@ export const ACTION_IDS = {
   GENERATE_SUMMARY: actionId("resume.summary.generate"),
   PARSE_UPLOAD: actionId("resume.parseUpload"),
   AUTO_BUILD_FROM_PARSE: actionId("resume.autoBuild.fromParse"),
+  // Phase 6 — admin template ingestion from screenshot
+  INGEST_TEMPLATE_SCREENSHOT: actionId("resume.template.ingestScreenshot"),
 } as const;
 
 export const WORKFLOW_IDS = {
